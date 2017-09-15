@@ -2,10 +2,11 @@
 Shows an animated 1D plot of the PSD from an RTL-SDR dongle, like slices of a waterfall plot.
 Uses matplotlib's FuncAnimation library to update the plot.
 
-Depends on:
-numpy
-matplotlib
-pyrtlsdr by roger-: https://github.com/roger-/pyrtlsdr
+Depends on
+numpy,
+matplotlib,
+pyrtlsdr by roger-: https://github.com/roger-/pyrtlsdr.
+Tested on python2.7, but I don't think there's too much here to go wrong with using python3. Untested.
 
 Currently dumb; you must edit the python source to change the SDR's window size and center frequency.
 I may do the right thing later and add command line args. For now, initialize with:
