@@ -23,14 +23,14 @@ from matplotlib.mlab import psd
 from rtlsdr import RtlSdr
 
 # Use psd parameters and var names from roger-'s demo_waterfall.py file
-NFFT = 512
-NUM_SAMPLES_PER_SCAN = NFFT*16
+NFFT = 1024
+NUM_SAMPLES_PER_SCAN = NFFT*3600
 
 # Choose spectrum window by altering these values.
 sdr = RtlSdr()
-sdr.rs = 2.4e6 # Rate of Sampling (intrinsically tied to bandwidth with SDR dongles)
-sdr.fc = 89.1e6 # Frequency Center
-sdr.gain = 10
+sdr.rs = 2.56e6 # Rate of Sampling (intrinsically tied to bandwidth with SDR dongles)
+sdr.fc = 1420.0e6 # Frequency Center
+sdr.gain = 49.6
 print('  sample rate: %0.6f MHz' % (sdr.rs/1e6))
 print('  center frequency %0.6f MHz' % (sdr.fc/1e6))
 print('  gain: %d dB' % sdr.gain)
@@ -40,7 +40,7 @@ fig, ax = plt.subplots()
 iq = sdr.read_samples(NUM_SAMPLES_PER_SCAN) # get initial data from sdr
 p_xx, freqs, psdlines = plt.psd(iq, NFFT=NFFT, Fc = sdr.fc/1e6, Fs=sdr.rs/1e6, 
     return_line = True)
-ax.set_ylim(-60, -10) # y-vals in dB/Hz
+ax.set_ylim(-40, -25) # y-vals in dB/Hz
 
 '''
 update the the amplitude y-vals in the only psd line instance being plotted, [0]
@@ -65,7 +65,7 @@ def data_gen():
         yield psd_y
 
 # play animation
-ani = animation.FuncAnimation(fig, update, data_gen, interval=0, blit = True)
+ani = animation.FuncAnimation(fig, update, data_gen, interval=30, blit=False)
 plt.show()
 
 # nice and tidy
