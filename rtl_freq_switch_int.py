@@ -66,7 +66,7 @@ def run_fswitch( NFFT, gain, rate, fc, fthrow, fswitch, t_int ):
             # Collect on-frequency samples
             iq_on.extend(sdr.read_samples(NUM_READ_SAMPLES))
         # Take the PSD of the on samples
-        p_xx_on, freqs_on = psd(iq_on, NFFT=NFFT, Fs=rate/1e6)
+        p_xx_on, freqs_on = psd(iq_on, NFFT=NFFT, Fs=rate)
         p_xx_on_tot += p_xx_on                                 
 
         # Switch to the switched frequency
@@ -79,7 +79,7 @@ def run_fswitch( NFFT, gain, rate, fc, fthrow, fswitch, t_int ):
             # Collect off-frequency samples
             iq_off.extend(sdr.read_samples(NUM_READ_SAMPLES))
         # And the off samples
-        p_xx_off, freqs_off = psd(iq_off, NFFT=NFFT, Fs=rate/1e6)
+        p_xx_off, freqs_off = psd(iq_off, NFFT=NFFT, Fs=rate)
         p_xx_off_tot += p_xx_off      
             
         if not p_xx_on_tot.any() or not p_xx_off_tot.any():
@@ -90,7 +90,7 @@ def run_fswitch( NFFT, gain, rate, fc, fthrow, fswitch, t_int ):
     # Add folded samples to the current and update
     p_xx_tot = (p_xx_on_tot - p_xx_off_tot)/2.
     # Shift frequency spectrum back to the intended range
-    freqs_on = freqs_on*1e6 + fc
+    freqs_on = freqs_on + fc
 
     # nice and tidy
     sdr.close()
@@ -120,7 +120,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    NFFT=2048
+    NFFT=512
 
     freqs, p_xx_tot = run_fswitch( NFFT, args.gain, args.rate, args.fc, args.fthrow, args.fswitch , args.t_int )
     save_spectrum( args.output, freqs, p_xx_tot )

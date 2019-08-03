@@ -28,8 +28,8 @@ NUM_SAMPLES_PER_SCAN = NFFT*3600
 
 # Choose spectrum window by altering these values.
 sdr = RtlSdr()
-sdr.rs = 2.56e6 # Rate of Sampling (intrinsically tied to bandwidth with SDR dongles)
-sdr.fc = 1420.0e6 # Frequency Center
+sdr.rs = 1.28e6 # Rate of Sampling (intrinsically tied to bandwidth with SDR dongles)
+sdr.fc = 1.4204e9 # Frequency Center
 sdr.gain = 49.6
 print('  sample rate: %0.6f MHz' % (sdr.rs/1e6))
 print('  center frequency %0.6f MHz' % (sdr.fc/1e6))

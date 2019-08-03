@@ -18,7 +18,7 @@ from rtlsdr import RtlSdr
 
 def run_fswitch( NFFT, gain, rate, fc, fthrow, fswitch ):
     '''
-    NFFT:    Pass-trough for matplotlib plot psd: powers of 2 are most efficient
+    NFFT:    Pass-through for matplotlib plot psd: powers of 2 are most efficient
     gain:    Requested SDR gain (dB)
     rate:    SDR sample rate, intrinsically tied to bandwidth in SDRs (Hz_
     fc:      base center frequency (Hz)
@@ -43,9 +43,13 @@ def run_fswitch( NFFT, gain, rate, fc, fthrow, fswitch ):
     # The amount of time to integrate on each frequency
     delta_t = 1./(2.*fswitch)
 
-    iq = sdr.read_samples(NFFT) # get initial data from sdr
+    # The number of iq samples to read on each call to the RtlSdr
+    NUM_READ_SAMPLES = NFFT * 1000
+
+    iq = sdr.read_samples(NUM_READ_SAMPLES) # get initial data from sdr
     p_xx, freqs, psdlines = plt.psd(iq, NFFT=NFFT, Fc=sdr.fc/1e6, Fs=sdr.rs/1e6, return_line=True, animated=True)
     line = psdlines[0]
+    line.linewidth=0.5
 
 
     '''
@@ -79,7 +83,7 @@ def run_fswitch( NFFT, gain, rate, fc, fthrow, fswitch ):
         iq_on = []
         while time.time()-start_time < delta_t:
             # Collect on-frequency samples
-            iq_on.extend(sdr.read_samples(NFFT))
+            iq_on.extend(sdr.read_samples(NUM_READ_SAMPLES))
         # Take the PSD of the on samples
         p_xx_on, freqs_on = psd(iq_on, NFFT=NFFT, Fs=sdr.rs/1e6)    
         p_xx_on_tot += p_xx_on                                 
@@ -94,7 +98,7 @@ def run_fswitch( NFFT, gain, rate, fc, fthrow, fswitch ):
         iq_off = []
         while time.time()-start_time < delta_t:
             # Collect off-frequency samples
-            iq_off.extend(sdr.read_samples(NFFT))
+            iq_off.extend(sdr.read_samples(NUM_READ_SAMPLES))
         # And the off samples
         p_xx_off, freqs_off = psd(iq_off, NFFT=NFFT, Fs=sdr.rs/1e6)
         p_xx_off_tot += p_xx_off      
@@ -122,10 +126,10 @@ if __name__ == '__main__':
     parser.add_argument('-g', '--gain', dest='gain', default=30.0, action='store', type=float, help='Requested SDR gain (dB)')
     parser.add_argument('-r', '--rate', dest='rate', default=2.56e6, action='store', type=float, help='Sample rate (Hz)')
     parser.add_argument('-c', '--fc', dest='fc', default=1.4202e9, action='store', type=float, help='Requested base frequency (Hz)')
-    parser.add_argument('-t', '--fthrow', dest='fthrow', default=0.0004e9, action='store', type=float, help='Delta to fc applied on every switching integration cycle. (Hz)')
+    parser.add_argument('-d', '--dfthrow', dest='fthrow', default=0.0004e9, action='store', type=float, help='Delta to fc applied on every switching integration cycle. (Hz)')
     parser.add_argument('-s', '--fswitch', dest='fswitch', default=0.2, action='store', type=float, help='Frequency at which SDR tuning frequency is switched from fc to fc+fthrow. One cycle is from fc to fc+fthrow bck to fc. (Hz)')
     args = parser.parse_args()
 
-    NFFT=1024
+    NFFT=2048
 
     run_fswitch( NFFT, args.gain, args.rate, args.fc, args.fthrow, args.fswitch )
