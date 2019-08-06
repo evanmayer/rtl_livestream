@@ -95,7 +95,10 @@ def run_fswitch( NFFT, gain, rate, fc, fthrow, t_int ):
 
     # Shift-and-add to fold
     # Magnitude of frequency shift in bin space:
-    bin_throw = np.where(freqs_on == fc)[0][0] - np.where(freqs_on == fc-fthrow)[0][0]
+    epsilon = (freqs_on[1] - freqs_on[0]) / 2.
+    fc_idx = np.where(np.abs(freqs_on - fc) < epsilon)[0][0]
+    fthrow_idx = np.where(np.abs(freqs_on - (fc-fthrow)) < epsilon)[0][0]
+    bin_throw = np.abs(fthrow_idx - fc_idx)
     # Folding procedure is a shift-and-add-negate, then average
     p_xx_fold = (p_xx_diff[bin_throw:-1] - p_xx_diff[0:NFFT-bin_throw-1]) / 2.
     # Get the folded, upper segment of freqs to return it,
