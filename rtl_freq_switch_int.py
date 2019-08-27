@@ -43,7 +43,7 @@ def run_fswitch( NFFT, gain, rate, fc, fthrow, t_int ):
     # The number of iq samples to read on each call to the RtlSdr
     NUM_READ_SAMPLES = NFFT
 
-    # Set up arrays to store integrated power from psd
+    # Set up arrays to store total power calculated from I-Q samples
     p_xx_on_tot = np.zeros(NFFT)
     p_xx_off_tot = np.zeros(NFFT)
     cnt_on = 0
@@ -71,12 +71,10 @@ def run_fswitch( NFFT, gain, rate, fc, fthrow, t_int ):
         iq_off += sdr.read_samples(NUM_READ_SAMPLES)
         if iq_off.any():
             cnt_off += 1
-
-        # Take the PSD of the on samples
+        
         p_xx_on, freqs_on = psd(iq_on, NFFT=NFFT, Fs=rate)
-        p_xx_on_tot += p_xx_on
-        # Take the PSD of the off samples
         p_xx_off, freqs_off = psd(iq_off, NFFT=NFFT, Fs=rate)
+        p_xx_on_tot += p_xx_on
         p_xx_off_tot += p_xx_off
 
     end_time = time.time()
@@ -88,7 +86,14 @@ def run_fswitch( NFFT, gain, rate, fc, fthrow, t_int ):
     p_avg_on = p_xx_on_tot / cnt_on
     p_avg_off = p_xx_off_tot / cnt_off
     # Compute the difference spectrum
-    p_xx_diff = p_avg_on - p_avg_off
+    p_diff = p_avg_on - p_avg_off
+
+    # Lazy: call psd once just to get the frequency ranges to do folding
+    p_xx_on, freqs_on = psd(iq_on, NFFT=NFFT, Fs=rate)
+    p_xx_off, freqs_off = psd(iq_off, NFFT=NFFT, Fs=rate)
+
+    save_spectrum('on.txt', freqs_on+fc, p_avg_on)
+    save_spectrum('off.txt', freqs_off+fc+fthrow, p_avg_off)
 
     # Shift frequency spectrum back to the intended range
     freqs_on = freqs_on + fc
@@ -100,7 +105,7 @@ def run_fswitch( NFFT, gain, rate, fc, fthrow, t_int ):
     fthrow_idx = np.where(np.abs(freqs_on - (fc-fthrow)) < epsilon)[0][0]
     bin_throw = np.abs(fthrow_idx - fc_idx)
     # Folding procedure is a shift-and-add-negate, then average
-    p_xx_fold = (p_xx_diff[bin_throw:-1] - p_xx_diff[0:NFFT-bin_throw-1]) / 2.
+    p_fold = (p_diff[bin_throw:-1] - p_diff[0:NFFT-bin_throw-1]) / 2.
     # Get the folded, upper segment of freqs to return it,
     # throwing away the unfolded part of the spectrum. Is there a way around this?
     freqs_fold = freqs_on[bin_throw:-1]
@@ -108,7 +113,7 @@ def run_fswitch( NFFT, gain, rate, fc, fthrow, t_int ):
     # nice and tidy
     sdr.close()
 
-    return freqs_fold, p_xx_fold
+    return freqs_fold, p_fold
 
 
 def save_spectrum(filename, freqs, p_xx):
