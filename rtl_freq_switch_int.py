@@ -9,7 +9,7 @@ Integrate over a specified length of time and save off to a text file.
 # Import plotting necessities
 import argparse
 import numpy as np
-from matplotlib.mlab import psd
+from scipy.signal import welch
 import time
 
 from rtlsdr import RtlSdr
@@ -18,7 +18,7 @@ from rtlsdr import RtlSdr
 def run_fswitch( NFFT, gain, rate, fc, fthrow, t_int ):
     '''
     Inputs:
-    NFFT:    Pass-through for matplotlib plot psd: powers of 2 are most efficient
+    NFFT:    Number of elements to sample from the SDR IQ timeseries: powers of 2 are most efficient
     gain:    Requested SDR gain (dB)
     rate:    SDR sample rate, intrinsically tied to bandwidth in SDRs (Hz)
     fc:      base center frequency (Hz)
@@ -28,7 +28,7 @@ def run_fswitch( NFFT, gain, rate, fc, fthrow, t_int ):
 
     Returns:
     freqs_fold:  Frequencies of the resulting spectrum, centered at fc (Hz), numpy array
-    p_xx_fold:   Folded frequency-switched spectrum (dB/Hz) numpy array,
+    p_fold:   Folded frequency-switched spectrum (dB/Hz) numpy array,
                  following Herschel docs at http://herschel.esac.esa.int/hcss-doc-15.0/load/hifi_um/html/hcb_pfsw.html
     '''
 
@@ -39,9 +39,6 @@ def run_fswitch( NFFT, gain, rate, fc, fthrow, t_int ):
     print('  sample rate: %0.6f MHz' % (sdr.rs/1e6))
     print('  center frequency %0.6f MHz' % (sdr.fc/1e6))
     print('  gain: %d dB' % sdr.gain)
-
-    # The number of iq samples to read on each call to the RtlSdr
-    NUM_READ_SAMPLES = NFFT
 
     # Set up arrays to store total power calculated from I-Q samples
     p_xx_on_tot = np.zeros(NFFT)
@@ -55,12 +52,15 @@ def run_fswitch( NFFT, gain, rate, fc, fthrow, t_int ):
     # Time integration loop
     # TODO: This could absolutely be sped up using a smart buffer, but this is python after all
     # If you really need speed, just use rtl_power_fftw, that's good C++ with a buffer
+
+    # Since we essentially sample as long as we want on each frequency,
+    # Estimate the power spectrum by Bartlett's method:
     while time.time()-start_time < t_int:
         # Switch to the center frequency
         sdr.fc = fc
         # Collect on-frequency samples
         iq_on = np.zeros(NFFT, dtype=complex)
-        iq_on += sdr.read_samples(NUM_READ_SAMPLES)
+        iq_on += sdr.read_samples(NFFT)
         if iq_on.any():
             cnt_on += 1
 
@@ -68,35 +68,73 @@ def run_fswitch( NFFT, gain, rate, fc, fthrow, t_int ):
         sdr.fc = fc + fthrow
         # Collect off-frequency samples
         iq_off = np.zeros(NFFT, dtype=complex)
-        iq_off += sdr.read_samples(NUM_READ_SAMPLES)
+        iq_off += sdr.read_samples(NFFT)
         if iq_off.any():
             cnt_off += 1
         
-        p_xx_on, freqs_on = psd(iq_on, NFFT=NFFT, Fs=rate)
-        p_xx_off, freqs_off = psd(iq_off, NFFT=NFFT, Fs=rate)
+        #p_xx_on, freqs_on = psd(iq_on, NFFT=NFFT, Fs=rate, scale_by_freq=False)
+        #p_xx_off, freqs_off = psd(iq_off, NFFT=NFFT, Fs=rate, scale_by_freq=False)
+
+        # Following https://en.wikipedia.org/wiki/Bartlett%27s_method: 
+        # Use scipy.signal.welch to compute 1 periodogram for each freq hop.
+        # For non-overlapping intervals, which we have because we are sampling
+        # the timeseries as it comes in, the welch() method is equivalent to
+        # Bartlett's method.
+        # We therefore have an N=NFFT-point data segment split up into K=1 non-
+        # overlapping segments, of length M=NFFT.
+        # This means we can call welch() on each set of samples from the SDR,
+        # accumulate them, and average later by the number of hops on each freq
+        # to reduce the noise while still following Barlett's method, and
+        # without keeping huge arrays of iq samples around in RAM.
+        freqs_on, p_xx_on = welch(iq_on, fs=rate, nperseg=NFFT, noverlap=0, scaling='spectrum', return_onesided=False)
+        freqs_off, p_xx_off = welch(iq_off, fs=rate, nperseg=NFFT, noverlap=0, scaling='spectrum', return_onesided=False)
         p_xx_on_tot += p_xx_on
         p_xx_off_tot += p_xx_off
-
+    
     end_time = time.time()
     print('Integration ended at {} after {} seconds.'.format(time.strftime('%a, %d %b %Y %H:%M:%S'), end_time-start_time))
     print('{} spectra were measured at {}.'.format(cnt_on, fc))
     print('{} spectra were measured at {}.'.format(cnt_off, fc+fthrow))
 
+    # Unfortunately, welch() with return_onesided=False does a sloppy job
+    # of returning the arrays in what we'd consider the "right" order,
+    # so we have to swap the first and last halves to avoid artifacts
+    # in the plot.
+    half_len = len(freqs_on)//2
+    # Swap frequencies:
+    tmp_first = freqs_on[:half_len].copy() 
+    tmp_last = freqs_on[half_len:].copy()
+    freqs_on[:half_len] = tmp_last
+    freqs_on[half_len:] = tmp_first
+
+    tmp_first = freqs_off[:half_len].copy()
+    tmp_last = freqs_off[half_len:].copy()
+    freqs_off[:half_len] = tmp_last
+    freqs_off[half_len:] = tmp_first
+
+    # Swap powers:
+    tmp_first = p_xx_on_tot[:half_len].copy()
+    tmp_last = p_xx_on_tot[half_len:].copy()
+    p_xx_on_tot[:half_len] = tmp_last
+    p_xx_on_tot[half_len:] = tmp_first
+
+    tmp_first = p_xx_off_tot[:half_len].copy()
+    tmp_last = p_xx_off_tot[half_len:].copy()
+    p_xx_off_tot[:half_len] = tmp_last
+    p_xx_off_tot[half_len:] = tmp_first
+
     # Compute the average power spectrum based on the number of spectra read
-    p_avg_on = p_xx_on_tot / cnt_on
-    p_avg_off = p_xx_off_tot / cnt_off
+    p_avg_on = 10.*np.log10(p_xx_on_tot / cnt_on)
+    p_avg_off = 10.*np.log10(p_xx_off_tot / cnt_off)
     # Compute the difference spectrum
     p_diff = p_avg_on - p_avg_off
 
-    # Lazy: call psd once just to get the frequency ranges to do folding
-    p_xx_on, freqs_on = psd(iq_on, NFFT=NFFT, Fs=rate)
-    p_xx_off, freqs_off = psd(iq_off, NFFT=NFFT, Fs=rate)
-
-    save_spectrum('on.txt', freqs_on+fc, p_avg_on)
-    save_spectrum('off.txt', freqs_off+fc+fthrow, p_avg_off)
-
-    # Shift frequency spectrum back to the intended range
+    # Shift frequency spectra back to the intended range
     freqs_on = freqs_on + fc
+    freqs_off = freqs_off + fc + fthrow
+
+    save_spectrum('on_avg.txt', freqs_on, p_avg_on)
+    save_spectrum('off_avg.txt', freqs_off, p_avg_off)
 
     # Shift-and-add to fold
     # Magnitude of frequency shift in bin space:
@@ -138,8 +176,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    NFFT=512
+    NFFT=2**12
 
-    freqs, p_xx_tot = run_fswitch( NFFT, args.gain, args.rate, args.fc, args.fthrow, args.t_int )
-    save_spectrum( args.output, freqs, p_xx_tot )
+    freqs, p_xx_avg = run_fswitch( NFFT, args.gain, args.rate, args.fc, args.fthrow, args.t_int )
+    save_spectrum( args.output, freqs, p_xx_avg )
 
