@@ -30,7 +30,7 @@ NUM_SAMPLES_PER_SCAN = NFFT*128
 sdr = RtlSdr()
 sdr.rs = 2.56e6 # Rate of Sampling (intrinsically tied to bandwidth with SDR dongles)
 sdr.fc = 1.4202e9 # Frequency Center
-sdr.gain = 30.0
+sdr.gain = 20.0
 print('  sample rate: %0.6f MHz' % (sdr.rs/1e6))
 print('  center frequency %0.6f MHz' % (sdr.fc/1e6))
 print('  gain: %d dB' % sdr.gain)
