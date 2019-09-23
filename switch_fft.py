@@ -165,13 +165,12 @@ if __name__ == '__main__':
     noise_ctrl.on()
     assert 1 == noise_ctrl.value, '{} did not return HIGH, noise source not switched on.'.format(CTRL_PIN)
 
-    freqs_noise, p_xx_avg_noise = run_integrate( NFFT, args.gain, args.rate, args.fc, 30.0 )
+    freqs_noise, p_xx_avg_noise = run_integrate( NFFT, args.gain, args.rate, args.fc, 60.0 )
     save_spectrum('noise_{}.txt'.format(int(time.time())),
                   freqs_noise,
                   p_xx_avg_noise)
 
-    print('Disabling noise source: \nSwitching GPIO pin {} low.'.format(
-        CTRL_PIN))
+    print('Disabling noise source: \nSwitching GPIO pin {} low.'.format(CTRL_PIN))
     noise_ctrl.off()
     assert 0 == noise_ctrl.value, '{} did not return LOW, noise source not switched off.'.format(CTRL_PIN)
 
