@@ -154,8 +154,8 @@ if __name__ == '__main__':
 
     NFFT=2**8
 
-    CTRL_PIN = 'GPIO4'
-    SENS_PIN = 'GPIO21'
+    CTRL_PIN = 'GPIO17'
+    SENS_PIN = 'GPIO27'
     noise_ctrl = gpiozero.DigitalOutputDevice(CTRL_PIN) 
     noise_sens = gpiozero.DigitalInputDevice(SENS_PIN)
     # Take a 30s noise source measurement and save to timestamped file.
@@ -163,7 +163,7 @@ if __name__ == '__main__':
         CTRL_PIN))
     # Switch CTRL pin and check Vcc to confirm
     noise_ctrl.on()
-    assert True, 'Vcc did not return HIGH, noise source not switched on.'
+    assert 1 == noise_ctrl.value, '{} did not return HIGH, noise source not switched on.'.format(CTRL_PIN)
 
     freqs_noise, p_xx_avg_noise = run_integrate( NFFT, args.gain, args.rate, args.fc, 30.0 )
     save_spectrum('noise_{}.txt'.format(int(time.time())),
@@ -173,7 +173,7 @@ if __name__ == '__main__':
     print('Disabling noise source: \nSwitching GPIO pin {} low.'.format(
         CTRL_PIN))
     noise_ctrl.off()
-    assert True, 'Vcc did not return LOW, noise source not switched off.'
+    assert 0 == noise_ctrl.value, '{} did not return LOW, noise source not switched off.'.format(CTRL_PIN)
 
     freqs, p_xx_avg = run_integrate( NFFT, args.gain, args.rate, args.fc, args.t_int )
     save_spectrum(args.output,
